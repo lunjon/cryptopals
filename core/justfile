@@ -1,0 +1,8 @@
+check:
+    cargo fmt
+    cargo check
+
+test:
+    cargo test
+
+t: test
