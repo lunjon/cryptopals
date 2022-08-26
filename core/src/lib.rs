@@ -31,6 +31,20 @@ impl From<std::str::Utf8Error> for Error {
     }
 }
 
+/// Macro useful for returning errors.
+#[macro_export]
+macro_rules! arg_err {
+    ( $msg:expr ) => {
+        let err = crate::Error::DataError($msg.to_string());
+        return Err(err)
+    };
+    ( $fmt:literal, $($e:expr),* ) => {
+        let msg = format!($fmt, $($e),*);
+        let err = Error::DataError(msg);
+        return Err(err)
+    };
+}
+
 pub type Result<T> = std::result::Result<T, Error>;
 
 pub struct Hacker {

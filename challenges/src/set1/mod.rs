@@ -1,4 +1,3 @@
-use std::str::from_utf8;
 use core::aes::{decrypt_128, Mode};
 use core::encoding::base64::*;
 use core::encoding::hex::*;
@@ -6,6 +5,7 @@ use core::encoding::*;
 use core::op::xor;
 use core::util::read_lines;
 use core::{Hacker, Result};
+use std::str::from_utf8;
 
 #[test]
 fn challenge_1() -> Result<()> {
@@ -17,11 +17,10 @@ fn challenge_1() -> Result<()> {
     let str_plain = "I'm killing your brain like a poisonous mushroom";
 
     let a = hex.decode(str_hex)?;
-    let a = from_utf8(&a)?;
+    let encoded_string = from_utf8(&a)?;
+    let b = b64.encode(&a)?;
 
-    let b = b64.encode(a.as_bytes())?;
-
-    assert_eq!(str_plain, a);
+    assert_eq!(str_plain, encoded_string);
     assert_eq!(str_b64, b);
     Ok(())
 }
@@ -32,12 +31,9 @@ fn challenge_2() -> Result<()> {
     let a = coder.decode("1c0111001f010100061a024b53535009181c")?;
     let b = coder.decode("686974207468652062756c6c277320657965")?;
 
-    let r = xor(&a, &b).unwrap();
-    let s = coder.encode(&r)?;
-    assert_eq!(
-        "746865206b696420646f6e277420706c6179",
-        s
-    );
+    let xored = xor(&a, &b)?;
+    let s = coder.encode(&xored)?;
+    assert_eq!("746865206b696420646f6e277420706c6179", s);
     Ok(())
 }
 
@@ -71,7 +67,9 @@ fn challenge_5() {
     let key = "ICE";
     let hacker = Hacker::new();
 
-    let encoded = hacker.repeating_key_xor(message.as_bytes(), key.as_bytes()).unwrap();
+    let encoded = hacker
+        .repeating_key_xor(message.as_bytes(), key.as_bytes())
+        .unwrap();
     let encoded_hex = hacker.hex.encode(&encoded).unwrap();
 
     let expected = "0b3637272a2b2e63622c2e69692a23693a2a3c6324202d623d63343c2a26226324272765272a282b2f20430a652e2c652a3124333a653e2b2027630c692b20283165286326302e27282f";
