@@ -1,8 +1,7 @@
-build: build-challenges build-cli build-core
+install-cli:
+    cargo install --path ./cli
 
-build-challenges: (_build "challenges")
-build-cli: (_build "cli")
-build-core: (_build "core")
+build-all: (_build "challenges") (_build "cli") (_build "core")
 
 _build dir:
     cd {{dir}} && cargo build
