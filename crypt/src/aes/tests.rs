@@ -20,7 +20,7 @@ fn test_encrypt_128_cbc() {
 #[test]
 fn test_encrypt_oracle() {
     let data = b"Some Crypto Text and something else";
-    let encrypted = encrypt_oracle(data).unwrap();
+    let (encrypted, _) = encrypt_oracle(data).unwrap();
     assert!(encrypted.len() > 0);
 }
 

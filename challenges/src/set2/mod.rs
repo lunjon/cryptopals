@@ -1,7 +1,7 @@
-use core::aes;
-use core::encoding::{base64, Decoder};
-use core::pad::pkcs7;
-use core::Result;
+use crypt::aes;
+use crypt::encoding::{base64, Decoder};
+use crypt::pad::pkcs7;
+use crypt::Result;
 use std::str::from_utf8;
 
 // Takes a multiline string and joines all into a single line.
@@ -41,4 +41,18 @@ fn challenge_10() -> Result<()> {
     let decrypted_string = from_utf8(&decrypted)?;
     assert!(decrypted_string.contains("Vanilla"));
     Ok(())
+}
+
+#[test]
+fn challenge_11() {
+    for _ in 0..10 {
+        // Black-box encryption
+        let data = String::from("16bytesofpower!!").repeat(6);
+        let (encrypted, t) = aes::encrypt_oracle(data.as_bytes()).unwrap();
+        let actual_mode = if t { "ECB" } else { "CBC" };
+
+        // Detection oracle
+        let detected_mode = aes::detection_oracle(&encrypted).unwrap();
+        assert_eq!(actual_mode, detected_mode);
+    }
 }

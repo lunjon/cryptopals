@@ -8,5 +8,5 @@ edition = "2021"
 [dependencies]
 clap = { version = "3.0.7", features = ["cargo"] }
 
-[dependencies.core]
-path = "../core"
+[dependencies.crypt]
+path = "../crypt"

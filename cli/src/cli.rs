@@ -1,8 +1,8 @@
 use clap::{app_from_crate, App, AppSettings, Arg, ArgMatches};
-use core::aes::{decrypt_128, encrypt_128, Mode};
-use core::encoding::{base64::Base64, hex::Hex, Decoder, Encoder};
-use core::util;
-use core::{Error, Hacker, Result};
+use crypt::aes::{decrypt_128, encrypt_128, Mode};
+use crypt::encoding::{base64::Base64, hex::Hex, Decoder, Encoder};
+use crypt::util;
+use crypt::{Error, Hacker, Result};
 use std::str::from_utf8;
 
 const IN_ARG_NAME: &str = "in";

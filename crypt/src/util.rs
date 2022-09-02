@@ -48,7 +48,10 @@ pub fn read_stdin() -> Result<Vec<u8>> {
     let r = stdin.lock().read_to_end(&mut buf);
     match r {
         Ok(_) => Ok(buf),
-        Err(err) => Err(Error::ArgError(format!("error reading bytes from stdin: {}", err)))
+        Err(err) => Err(Error::ArgError(format!(
+            "error reading bytes from stdin: {}",
+            err
+        ))),
     }
 }
 
@@ -69,6 +72,24 @@ pub fn write_stdout(b: &[u8]) -> Result<()> {
         Ok(_) => Ok(()),
         Err(err) => Err(Error::DataError(format!("failed to write stdout: {}", err))),
     }
+}
+
+pub fn slices_equal<T>(a: &[T], b: &[T]) -> bool
+where
+    T: PartialEq,
+{
+    if a.len() != b.len() {
+        return false;
+    }
+
+    for index in 0..a.len() {
+        let x = &a[index];
+        let y = &b[index];
+        if !x.eq(&y) {
+            return false;
+        }
+    }
+    return true;
 }
 
 fn open(filename: &str) -> Result<BufReader<File>> {
@@ -103,5 +124,20 @@ mod tests {
     #[test]
     fn test_read_unknown() {
         assert!(read_lines("doEs_Not-exist.txt").is_err());
+    }
+
+    #[test]
+    fn test_slices_equal() {
+        let a = &["a", "b", "c"];
+        let b = &["a", "b", "c"];
+        assert!(slices_equal(a, b));
+
+        let a = &["a", "b", "c"];
+        let b = &["a", "c", "b"];
+        assert!(!slices_equal(a, b));
+
+        let a = &["a", "b", "c"];
+        let b = &["a", "b"];
+        assert!(!slices_equal(a, b));
     }
 }

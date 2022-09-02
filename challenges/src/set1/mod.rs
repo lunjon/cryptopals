@@ -1,10 +1,10 @@
-use core::aes::{decrypt_128, Mode};
-use core::encoding::base64::*;
-use core::encoding::hex::*;
-use core::encoding::*;
-use core::op::xor;
-use core::util::read_lines;
-use core::{Hacker, Result};
+use crypt::aes::{decrypt_128, Mode};
+use crypt::encoding::base64::*;
+use crypt::encoding::hex::*;
+use crypt::encoding::*;
+use crypt::op::xor;
+use crypt::util::read_lines;
+use crypt::{Hacker, Result};
 use std::str::from_utf8;
 
 #[test]

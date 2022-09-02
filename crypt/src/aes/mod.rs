@@ -1,6 +1,8 @@
 use super::{Error, Result};
+use crate::util;
 use openssl::symm::{decrypt, encrypt, Cipher};
 use rand::{random, Rng, RngCore};
+use std::ops::Range;
 
 #[cfg(test)]
 mod tests;
@@ -43,10 +45,10 @@ fn random_key() -> Vec<u8> {
     data.to_vec()
 }
 
-fn random_data() -> Vec<u8> {
+fn random_data(r: Range<usize>) -> Vec<u8> {
     let mut data = Vec::new();
     let mut rng = rand::thread_rng();
-    let a: usize = rng.gen_range(5..10);
+    let a: usize = rng.gen_range(r);
     for _ in 0..a {
         let n: u8 = rng.gen();
         data.push(n);
@@ -54,19 +56,50 @@ fn random_data() -> Vec<u8> {
     data
 }
 
-pub fn encrypt_oracle(data: &[u8]) -> Result<Vec<u8>> {
+pub fn encrypt_oracle(data: &[u8]) -> Result<(Vec<u8>, bool)> {
     let key = random_key();
     let mut v: Vec<u8> = Vec::new();
-    v.extend(random_data());
+    v.extend(random_data(5..11));
     v.extend(data);
-    v.extend(random_data());
+    v.extend(random_data(5..11));
 
     if random::<bool>() {
-        encrypt_128(Mode::ECB, data, &key)
+        let b = encrypt_128(Mode::ECB, data, &key)?;
+        Ok((b, true))
     } else {
         let iv = random_key();
-        encrypt_128(Mode::CBC(iv), data, &key)
+        let b = encrypt_128(Mode::CBC(iv), data, &key)?;
+        Ok((b, false))
     }
+}
+
+/// Try to detect AES mode by looking at the encrypted data.
+pub fn detection_oracle(data: &[u8]) -> Result<String> {
+    // Use the fact that ECB mode always produces the same
+    // output given the same key and block.
+    //   => make a sweeping window of 16 bytes
+    //      and try to find two equal consecutive blocks:
+    //      ... [ a ] [ b ] ...
+    //      if a == b => ECB.
+    if data.len() < BLOCK_SIZE * 4 {
+        return Err(Error::DataError(format!(
+            "to short data length to be able to detect mode: {}",
+            data.len()
+        )));
+    }
+
+    let end_index = data.len() - BLOCK_SIZE * 2;
+    for index in 0..end_index {
+        let middle = index + BLOCK_SIZE;
+        let end = index + BLOCK_SIZE * 2;
+        let a = &data[index..middle];
+        let b = &data[middle..end];
+
+        if util::slices_equal(a, b) {
+            return Ok("ECB".to_string());
+        }
+    }
+    Ok("CBC".to_string())
 }
 
 pub fn encrypt_128(mode: Mode, data: &[u8], key: &[u8]) -> Result<Vec<u8>> {
@@ -87,17 +120,8 @@ pub fn decrypt_128(mode: Mode, data: &[u8], key: &[u8]) -> Result<Vec<u8>> {
 
 fn encrypt_128_ecb(data: &[u8], key: &[u8]) -> Result<Vec<u8>> {
     check_block_len(key)?;
-    // check_data_len(data)?;
-
-    // let mut results: Vec<u8> = Vec::new();
 
     let cipher = Cipher::aes_128_ecb();
-    // for block in data.chunks(BLOCK_SIZE) {
-    //     match encrypt(cipher, key, None, block) {
-    //         Ok(v) => results.extend_from_slice(&v),
-    //         Err(err) => return Err(Error::DataError(format!("error encrypting: {}", err))),
-    //     }
-    // }
     match encrypt(cipher, key, None, data) {
         Ok(v) => Ok(v),
         Err(err) => Err(Error::DataError(format!("error encrypting: {}", err))),

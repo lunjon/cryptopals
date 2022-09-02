@@ -8,5 +8,5 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.63"
 
-[dependencies.core]
-path = "../core"
+[dependencies.crypt]
+path = "../crypt"
