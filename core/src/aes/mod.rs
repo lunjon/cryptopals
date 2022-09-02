@@ -2,6 +2,9 @@ use super::{Error, Result};
 use openssl::symm::{decrypt, encrypt, Cipher};
 use rand::{random, Rng, RngCore};
 
+#[cfg(test)]
+mod tests;
+
 /// Wrapper of the openssl crate:
 /// https://docs.rs/openssl/latest/openssl/index.html
 
@@ -132,52 +135,5 @@ fn decrypt_128_cbc(iv: &[u8], data: &[u8], key: &[u8]) -> Result<Vec<u8>> {
     match decrypt(cipher, key, Some(iv), data) {
         Ok(v) => Ok(v),
         Err(err) => Err(Error::DataError(format!("error decrypting: {}", err))),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    const KEY: &[u8] = b"YELLOW SUBMARINE";
-
-    #[test]
-    fn test_encrypt_128_ecb() {
-        let data = b"Some Crypto Text";
-        let encrypted = encrypt_128(Mode::ECB, data, KEY).unwrap();
-        assert!(encrypted.len() > 0);
-    }
-
-    #[test]
-    fn test_encrypt_128_cbc() {
-        let data = b"Some Crypto Text";
-
-        let encrypted = encrypt_128(Mode::CBC(KEY.to_vec()), data, KEY).unwrap();
-        assert!(encrypted.len() > 0);
-    }
-
-    #[test]
-    fn test_encrypt_oracle() {
-        let data = b"Some Crypto Text and something else";
-        let encrypted = encrypt_oracle(data).unwrap();
-        assert!(encrypted.len() > 0);
-    }
-
-    #[test]
-    fn test_decrypt_128_ecb() {
-        let data = b"Some Crypto Text";
-
-        let encrypted = encrypt_128(Mode::ECB, data, KEY).unwrap();
-        let decrypted = decrypt_128(Mode::ECB, &encrypted, KEY).unwrap();
-        assert_eq!(decrypted, data);
-    }
-
-    #[test]
-    fn test_decrypt_128_cbc() {
-        let data = b"Some Crypto Text";
-
-        let encrypted = encrypt_128(Mode::CBC(KEY.to_vec()), data, KEY).unwrap();
-        let decrypted = decrypt_128(Mode::CBC(KEY.to_vec()), &encrypted, KEY).unwrap();
-        assert_eq!(decrypted, data);
     }
 }
