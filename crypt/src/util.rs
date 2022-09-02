@@ -92,6 +92,16 @@ where
     return true;
 }
 
+// Takes a multiline string and joines all into a single line.
+pub fn into_line(s: &str) -> String {
+    let lines: Vec<String> = s
+        .trim()
+        .lines()
+        .map(|line| line.trim().to_string())
+        .collect();
+    lines.join("")
+}
+
 fn open(filename: &str) -> Result<BufReader<File>> {
     match File::open(filename) {
         Ok(f) => Ok(BufReader::new(f)),
