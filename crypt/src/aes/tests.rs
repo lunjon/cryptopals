@@ -12,7 +12,6 @@ fn test_encrypt_128_ecb() {
 #[test]
 fn test_encrypt_128_cbc() {
     let data = b"Some Crypto Text";
-
     let encrypted = encrypt_128(Mode::CBC(KEY.to_vec()), data, KEY).unwrap();
     assert!(encrypted.len() > 0);
 }

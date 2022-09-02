@@ -39,13 +39,13 @@ fn check_data_len(data: &[u8]) -> Result<()> {
     }
 }
 
-fn random_key() -> Vec<u8> {
+pub fn random_key() -> Vec<u8> {
     let mut data = [0u8; 16];
     rand::thread_rng().fill_bytes(&mut data);
     data.to_vec()
 }
 
-fn random_data(r: Range<usize>) -> Vec<u8> {
+pub fn random_data(r: Range<usize>) -> Vec<u8> {
     let mut data = Vec::new();
     let mut rng = rand::thread_rng();
     let a: usize = rng.gen_range(r);
@@ -73,30 +73,37 @@ pub fn encrypt_oracle(data: &[u8]) -> Result<(Vec<u8>, bool)> {
     }
 }
 
-/// Try to detect AES mode by looking at the encrypted data.
-pub fn detection_oracle(data: &[u8]) -> Result<String> {
+/// Try to detect AES mode by looking at the plaintext and encrypted data.
+pub fn detection_oracle(plaintext: &[u8], encrypted: &[u8]) -> Result<String> {
     // Use the fact that ECB mode always produces the same
     // output given the same key and block.
-    //   => make a sweeping window of 16 bytes
-    //      and try to find two equal consecutive blocks:
-    //      ... [ a ] [ b ] ...
-    //      if a == b => ECB.
-    if data.len() < BLOCK_SIZE * 4 {
+
+    if plaintext.len() < BLOCK_SIZE {
         return Err(Error::DataError(format!(
             "to short data length to be able to detect mode: {}",
-            data.len()
+            plaintext.len()
         )));
     }
 
-    let end_index = data.len() - BLOCK_SIZE * 2;
-    for index in 0..end_index {
-        let middle = index + BLOCK_SIZE;
-        let end = index + BLOCK_SIZE * 2;
-        let a = &data[index..middle];
-        let b = &data[middle..end];
+    let window_size = 4;
+    let end_index = plaintext.len() - window_size * 2;
 
-        if util::slices_equal(a, b) {
-            return Ok("ECB".to_string());
+    for a_start in 0..end_index {
+        let a_offset = a_start + window_size;
+        let a = &plaintext[a_start..a_offset];
+
+        for b_start in a_offset..plaintext.len() - window_size {
+            let b_offset = b_start + window_size;
+            let b = &plaintext[b_start..b_offset];
+
+            if util::slices_equal(a, b) {
+                // Check if plaintext at the same offset are equal => ECB mode
+                let x = &encrypted[a_start..a_offset];
+                let y = &encrypted[b_start..b_offset];
+                if util::slices_equal(x, y) {
+                    return Ok("ECB".to_string());
+                }
+            }
         }
     }
     Ok("CBC".to_string())
