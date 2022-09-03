@@ -135,3 +135,17 @@ fn challenge_12() -> Result<()> {
     assert!(unknown.contains("Rollin'"));
     Ok(())
 }
+
+// Challenge 13
+
+fn profile_for(email: &str) -> String {
+    let email = email.replace("&", "").replace("=", "");
+    format!("{email}&uid=10&role=user")
+}
+
+#[test]
+fn challenge_13() {
+    let email = "test@example.com";
+    let profile = profile_for(email);
+    assert!(profile.len() > 0);
+}
