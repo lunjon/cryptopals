@@ -1,3 +1,5 @@
+use crate::{Error::*, Result};
+
 pub fn pkcs7(b: &[u8], size: usize) -> Vec<u8> {
     let mut v = b.to_vec();
 
@@ -8,6 +10,17 @@ pub fn pkcs7(b: &[u8], size: usize) -> Vec<u8> {
     }
 
     v
+}
+
+pub fn pkcs7_validate<'a>(b: &'a str, size: usize) -> Result<&'a str> {
+    if b.len() != size {
+        return Err(DataError(format!(
+            "invalid size of data: expected {} but was {}",
+            size,
+            b.len()
+        )));
+    }
+    todo!()
 }
 
 pub fn pkcs7_inplace(b: &mut Vec<u8>, size: usize) {
