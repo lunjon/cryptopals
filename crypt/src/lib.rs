@@ -33,15 +33,12 @@ impl From<std::str::Utf8Error> for Error {
 
 /// Macro useful for returning errors.
 #[macro_export]
-macro_rules! arg_err {
+macro_rules! data_err {
     ( $msg:expr ) => {
-        let err = crate::Error::DataError($msg.to_string());
-        return Err(err)
+        crate::Error::DataError($msg.to_string())
     };
     ( $fmt:literal, $($e:expr),* ) => {
-        let msg = format!($fmt, $($e),*);
-        let err = Error::DataError(msg);
-        return Err(err)
+        crate::Error::DataError(format!($fmt, $($e),*))
     };
 }
 

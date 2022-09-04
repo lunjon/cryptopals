@@ -1,10 +1,10 @@
-use super::{arg_err, Result};
+use super::{data_err, Result};
 
 /// Calculate XOR between two slices, they must have
 /// equal lengths.
 pub fn xor(a: &[u8], b: &[u8]) -> Result<Vec<u8>> {
     if a.len() != b.len() {
-        arg_err!("slices must have equal length");
+        return Err(data_err!("slices must have equal length"));
     }
 
     let mut result = Vec::new();
