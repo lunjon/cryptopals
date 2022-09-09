@@ -1,6 +1,6 @@
 use crypt::aes;
 use crypt::encoding::{base64, Decoder};
-use crypt::pad::pkcs7;
+use crypt::pad::{pkcs7, pkcs7_validate};
 use crypt::util;
 use crypt::{Error::DataError, Result};
 use std::collections::HashMap;
@@ -272,7 +272,7 @@ fn challenge_13() -> Result<()> {
 
     // 1)
     let admin_block = pkcs7(b"admin", block_size);
-    let email = format!("hack@e.com{}aaa", from_utf8(&admin_block)?);
+    let email = format!("hack@evil.{}com", from_utf8(&admin_block)?);
     let profile = UserProfile::profile_for(&email);
 
     // 2)
@@ -290,4 +290,12 @@ fn challenge_13() -> Result<()> {
     assert_eq!("admin", profile.role);
 
     Ok(())
+}
+
+#[test]
+fn challenge_15() {
+    let res = pkcs7_validate("test\x04\x04\x04\x04", 8);
+    assert!(res.is_ok());
+    let res = pkcs7_validate("test\x04\x04\x04", 8);
+    assert!(res.is_err());
 }
