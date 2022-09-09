@@ -1,5 +1,6 @@
 use crypt::aes;
 use crypt::encoding::{base64, Decoder};
+use crypt::gen;
 use crypt::pad::{pkcs7, pkcs7_validate};
 use crypt::util;
 use crypt::{Error::DataError, Result};
@@ -50,35 +51,49 @@ fn challenge_11() {
     }
 }
 
-// Challenge 12
-
 struct C12 {
     unknown: String,
     key: Vec<u8>,
+    prefix_random: bool,
 }
 
 impl C12 {
-    fn new() -> Self {
+    /// Returns a new oracle used in challenge 12 & 14.
+    /// `prefix_random` is used by challenge 14 to append
+    /// some random bytes before encrypting.
+    fn new(prefix_random: bool) -> Self {
         let decoder = base64::Base64::new();
         let unknown_string = "Um9sbGluJyBpbiBteSA1LjAKV2l0aCBteSByYWctdG9wIGRvd24gc28gbXkgaGFpciBjYW4gYmxvdwpUaGUgZ2lybGllcyBvbiBzdGFuZGJ5IHdhdmluZyBqdXN0IHRvIHNheSBoaQpEaWQgeW91IHN0b3A/IE5vLCBJIGp1c3QgZHJvdmUgYnkK";
         let unknown = decoder.decode(&unknown_string).unwrap();
         let unknown = from_utf8(&unknown).unwrap().to_string();
 
-        let key = aes::random_key();
-        Self { unknown, key }
+        let key = gen::random_key();
+        Self {
+            unknown,
+            key,
+            prefix_random,
+        }
     }
 
     pub fn encrypt(&self, data: &str) -> Result<Vec<u8>> {
-        let mut data = String::from(data);
-        data.push_str(&self.unknown);
-        let encrypted = aes::encrypt_128(aes::Mode::ECB, &data.as_bytes(), &self.key)?;
+        let mut data_bytes = Vec::new();
+        if self.prefix_random {
+            let r = gen::random_data(13..33);
+            data_bytes.extend_from_slice(&r);
+        }
+
+        let mut data_string = String::from(data);
+        data_string.push_str(&self.unknown);
+        data_bytes.extend_from_slice(data_string.as_bytes());
+
+        let encrypted = aes::encrypt_128(aes::Mode::ECB, &data_bytes, &self.key)?;
         Ok(encrypted)
     }
 }
 
 #[test]
 fn challenge_12() -> Result<()> {
-    let encrypter = C12::new();
+    let encrypter = C12::new(false);
 
     // 1: detect block size
     let mut block_size = 0;
@@ -98,8 +113,20 @@ fn challenge_12() -> Result<()> {
     let mode = aes::detection_oracle(input.as_bytes(), &encrypted).unwrap();
     assert_eq!("ECB", mode);
 
-    // 3
+    // 3: find the random string, one byte at a time
     let mut unknown: Vec<String> = Vec::new();
+
+    // Do like this:
+    //   1. Begin by building a string that has a length of block_size - 1:
+    //     Lets say that block size is 8, we begin with: "AAAAAAA"
+    //   2. Feed the string to the oracle and save the first block of ciphertext
+    //   3. Now, constuct a string ending with every possible byte
+    //      and feed that to the oracle, building a list of
+    //      (input, block) pairs
+    //   4. Find the input, in your list created in step 3, that
+    //      yields the same first block.
+    //   5. Repeat step 1-4, but with the known byte at last position,
+    //      and so on.
 
     // Should probably keep going, but the principle is the same
     for _ in 0..block_size {
@@ -111,7 +138,6 @@ fn challenge_12() -> Result<()> {
 
         for n in 0..256 {
             let ch = char::from_u32(n).expect("to have valid byte");
-            // let input = format!("{}{}", initial_input, ch);
             let input = format!("{}{}{}", initial_input, unknown.join(""), ch);
             let enc = encrypter.encrypt(&input)?;
             let block = &enc[0..block_size];
@@ -167,7 +193,7 @@ struct C13 {
 impl C13 {
     fn new() -> Self {
         Self {
-            key: aes::random_key(),
+            key: gen::random_key(),
         }
     }
 
@@ -288,6 +314,36 @@ fn challenge_13() -> Result<()> {
 
     let profile = c13.decrypt(&altered_data)?;
     assert_eq!("admin", profile.role);
+
+    Ok(())
+}
+
+#[test]
+// Byte-at-a-time ECB decryption (Harder)
+fn challenge_14() -> Result<()> {
+    // Same as in #12, but harder: the oracle now append random data before doing the rest
+    let oracle = C12::new(true);
+
+    // Skip step 1 & 2 (refer to #12 for that)
+    let block_size = 16;
+
+    // We now have: AES-128-ECB(random-prefix || attacker-controlled || target-bytes, random-key)
+    // Same goal: decrypt the target-bytes.
+    //
+    // Theory: feed same data two times in order to detect the random data appened:
+    //   1) C1 = [ R1 ][ X ][ Y ]
+    //   2) C2 = [   R2   ][ X ][ Y ]
+    //  X and Y is the same, but R1 and R2 is different on each encryption.
+    //  Find the common tail, i.e [ X ][ Y ] part, in order to find the length:
+    //      |R1|+d = |R2|
+    //
+    // FIXME: the theory doesn't work
+    let data = "A".repeat(block_size);
+    let a = oracle.encrypt(&data)?;
+    let b = oracle.encrypt(&data)?;
+    dbg!(&a.get(0..16), &b.get(0..16));
+    let opt = util::slices_prefix_len(16, &a, &b);
+    assert!(opt.is_some());
 
     Ok(())
 }

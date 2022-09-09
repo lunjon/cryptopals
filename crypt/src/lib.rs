@@ -5,6 +5,7 @@ use std::str::from_utf8;
 
 pub mod aes;
 pub mod encoding;
+pub mod gen;
 pub mod op;
 pub mod pad;
 pub mod util;
