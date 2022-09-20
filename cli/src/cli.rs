@@ -43,14 +43,14 @@ impl Cli {
                     )
                     .arg(
                         Arg::new(IN_ARG_NAME)
-                            .help("Read input from files, else use stdin.")
                             .long(IN_ARG_NAME)
+                            .help("Read input from files, else use stdin.")
                             .takes_value(true),
                     )
                     .arg(
                         Arg::new(OUT_ARG_NAME)
-                            .help("Write result to file, else use stdout.")
                             .long(OUT_ARG_NAME)
+                            .help("Write result to file, else use stdout.")
                             .takes_value(true),
                     )
                     .arg(
@@ -81,14 +81,14 @@ impl Cli {
                     )
                     .arg(
                         Arg::new(IN_ARG_NAME)
-                            .help("Read input from files, else use stdin.")
                             .long(IN_ARG_NAME)
+                            .help("Read input from files, else use stdin.")
                             .takes_value(true),
                     )
                     .arg(
                         Arg::new(OUT_ARG_NAME)
-                            .help("Write result to file, else use stdout.")
                             .long(OUT_ARG_NAME)
+                            .help("Write result to file, else use stdout.")
                             .takes_value(true),
                     )
                     .arg(
@@ -117,8 +117,8 @@ impl Cli {
                     )
                     .arg(
                         Arg::new(OUT_ARG_NAME)
-                            .help("Write result to file, else use stdout.")
                             .long(OUT_ARG_NAME)
+                            .help("Write result to file, else use stdout.")
                             .takes_value(true),
                     )
                     .arg(
@@ -134,14 +134,14 @@ impl Cli {
                     .about("Decodes text from a given scheme.")
                     .arg(
                         Arg::new(IN_ARG_NAME)
-                            .help("Read input from files, else use stdin.")
                             .long(IN_ARG_NAME)
+                            .help("Read input from files, else use stdin.")
                             .takes_value(true),
                     )
                     .arg(
                         Arg::new(OUT_ARG_NAME)
+                            .long(OUT_ARG_NAME)
                             .help("Write result to file.")
-                            .help("Write result to file, else use stdout.")
                             .takes_value(true),
                     )
                     .arg(
@@ -162,7 +162,10 @@ impl Cli {
             _ => unreachable!(),
         }
     }
+}
 
+// encrypt/decrypt
+impl Cli {
     fn handle_encrypt(&self, matches: &ArgMatches) -> Result<()> {
         let buffer = get_input(matches.value_of(IN_ARG_NAME))?;
         let key_hex = matches.value_of("key").unwrap().trim();
@@ -178,10 +181,7 @@ impl Cli {
             _ => unreachable!(),
         };
 
-        match matches.value_of(OUT_ARG_NAME) {
-            None => util::write_stdout(&encrypted),
-            Some(f) => util::write_bytes(f, &encrypted),
-        }
+        write_output(matches.value_of(OUT_ARG_NAME), &encrypted)
     }
 
     fn handle_decrypt(&self, matches: &ArgMatches) -> Result<()> {
@@ -199,12 +199,12 @@ impl Cli {
             _ => unreachable!(),
         };
 
-        match matches.value_of(OUT_ARG_NAME) {
-            None => util::write_stdout(&decrypted),
-            Some(f) => util::write_bytes(f, &decrypted),
-        }
+        write_output(matches.value_of(OUT_ARG_NAME), &decrypted)
     }
+}
 
+// encode/decode
+impl Cli {
     fn handle_encode(&self, matches: &ArgMatches) -> Result<()> {
         let buffer = get_input(matches.value_of(IN_ARG_NAME))?;
 
@@ -227,23 +227,19 @@ impl Cli {
         let s = from_utf8(&buffer)?.trim(); // The string includes a newline character at the end.
 
         let v = match matches.value_of("scheme").unwrap() {
-            "hex" => self.hex.decode(&s)?,
-            "b64" | "base64" => self.b64.decode(&s)?,
+            "hex" => self.hex.decode(s)?,
+            "b64" | "base64" => self.b64.decode(s)?,
             _ => unreachable!(),
         };
-
-        match matches.value_of(OUT_ARG_NAME) {
-            Some(outfile) => util::write_bytes(outfile, &v),
-            None => util::write_stdout(&v),
-        }
+        write_output(matches.value_of(OUT_ARG_NAME), &v)
     }
 
     fn get_iv(&self, iv: Option<&str>) -> Result<Vec<u8>> {
         match iv {
             Some(s) => self.hex.decode(s),
-            None => Err(Error::ArgError(format!(
-                "CBC mode requires the --iv option"
-            ))),
+            None => Err(Error::ArgError(
+                "CBC mode requires the --iv option".to_string(),
+            )),
         }
     }
 }
@@ -252,5 +248,12 @@ fn get_input(file: Option<&str>) -> Result<Vec<u8>> {
     match file {
         Some(f) => util::read_bytes(f),
         None => util::read_stdin(),
+    }
+}
+
+fn write_output(out: Option<&str>, data: &[u8]) -> Result<()> {
+    match out {
+        Some(outfile) => util::write_bytes(outfile, data),
+        None => util::write_stdout(data),
     }
 }

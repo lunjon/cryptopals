@@ -1,3 +1,5 @@
+use openssl::error::ErrorStack;
+
 use crate::encoding::Decoder;
 use crate::op::*;
 use std::collections::{BTreeMap, HashMap};
@@ -23,6 +25,12 @@ impl std::fmt::Display for Error {
             Error::ArgError(s) => write!(f, "invalid argument: {}", s),
             Error::DataError(s) => write!(f, "invalid data: {}", s),
         }
+    }
+}
+
+impl From<ErrorStack> for Error {
+    fn from(err: ErrorStack) -> Self {
+        Error::DataError(format!("openssl error: {}", err))
     }
 }
 

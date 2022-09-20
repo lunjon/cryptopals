@@ -1,7 +1,7 @@
 challenges:
     cd challenges && cargo test
 
-install-cli:
+install:
     cargo install --path ./cli
 
 fmt:(_fmt "challenges") (_fmt "cli") (_fmt "crypt")
