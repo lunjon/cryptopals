@@ -1,7 +1,6 @@
-use openssl::error::ErrorStack;
-
 use crate::encoding::Decoder;
 use crate::op::*;
+use openssl::error::ErrorStack;
 use std::collections::{BTreeMap, HashMap};
 use std::str::from_utf8;
 

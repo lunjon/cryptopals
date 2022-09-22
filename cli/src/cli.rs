@@ -3,6 +3,7 @@ use crypt::aes::{decrypt_128, encrypt_128, Mode};
 use crypt::encoding::{base64::Base64, hex::Hex, Decoder, Encoder};
 use crypt::util;
 use crypt::{Error, Hacker, Result};
+use openssl::hash::{self, MessageDigest};
 use std::str::from_utf8;
 
 const IN_ARG_NAME: &str = "in";
@@ -152,6 +153,30 @@ impl Cli {
                             .required(true),
                     ),
             )
+            .subcommand(
+                App::new("hash")
+                    .about("Hash functions.")
+                    .arg(
+                        Arg::new("digest")
+                            .long("digest")
+                            .short('d')
+                            .help("Message digest kind.")
+                            .required(true)
+                            .possible_values(&["md5", "sha256", "sha512", "sha3_256", "shake_256"]),
+                    )
+                    .arg(
+                        Arg::new(IN_ARG_NAME)
+                            .long(IN_ARG_NAME)
+                            .help("Read input from file, else use stdin.")
+                            .takes_value(true),
+                    )
+                    .arg(
+                        Arg::new(OUT_ARG_NAME)
+                            .long(OUT_ARG_NAME)
+                            .help("Write result to file.")
+                            .takes_value(true),
+                    ),
+            )
             .get_matches();
 
         match matches.subcommand() {
@@ -159,6 +184,7 @@ impl Cli {
             Some(("decrypt", sub_matches)) => self.handle_decrypt(sub_matches),
             Some(("encode", sub_matches)) => self.handle_encode(sub_matches),
             Some(("decode", sub_matches)) => self.handle_decode(sub_matches),
+            Some(("hash", sub_matches)) => self.handle_hash(sub_matches),
             _ => unreachable!(),
         }
     }
@@ -241,6 +267,24 @@ impl Cli {
                 "CBC mode requires the --iv option".to_string(),
             )),
         }
+    }
+}
+
+impl Cli {
+    fn handle_hash(&self, matches: &ArgMatches) -> Result<()> {
+        let buffer = get_input(matches.value_of(IN_ARG_NAME))?;
+        let digest = match matches.value_of("digest").unwrap() {
+            "md5" => MessageDigest::md5(),
+            "sha256" => MessageDigest::sha256(),
+            "sha512" => MessageDigest::sha512(),
+            "sha3_256" => MessageDigest::sha3_256(),
+            "shake_256" => MessageDigest::shake_256(),
+            _ => unreachable!(),
+        };
+
+        let res = hash::hash(digest, &buffer)?;
+        let hex = self.hex.encode(&res)?;
+        write_output(matches.value_of(OUT_ARG_NAME), hex.as_bytes())
     }
 }
 
