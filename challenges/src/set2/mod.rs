@@ -54,7 +54,7 @@ fn challenge_11() {
 struct C12 {
     unknown: String,
     key: Vec<u8>,
-    prefix_random: bool,
+    prefix: Option<Vec<u8>>,
 }
 
 impl C12 {
@@ -67,27 +67,36 @@ impl C12 {
         let unknown = decoder.decode(&unknown_string).unwrap();
         let unknown = from_utf8(&unknown).unwrap().to_string();
 
+        let prefix = if prefix_random {
+            Some(gen::random_data(3..15))
+        } else {
+            None
+        };
+
         let key = gen::random_key();
         Self {
             unknown,
             key,
-            prefix_random,
+            prefix,
         }
     }
 
     pub fn encrypt(&self, data: &str) -> Result<Vec<u8>> {
         let mut data_bytes = Vec::new();
-        if self.prefix_random {
-            let r = gen::random_data(13..33);
-            data_bytes.extend_from_slice(&r);
+        if let Some(prefix) = &self.prefix {
+            data_bytes.extend_from_slice(prefix);
         }
 
         let mut data_string = String::from(data);
         data_string.push_str(&self.unknown);
         data_bytes.extend_from_slice(data_string.as_bytes());
 
-        let encrypted = aes::encrypt_128(aes::Mode::ECB, &data_bytes, &self.key)?;
-        Ok(encrypted)
+        let es = aes::encrypt_128(aes::Mode::ECB, &data_bytes, &self.key)?;
+        Ok(es)
+    }
+
+    pub fn prefix_len(&self) -> usize {
+        self.prefix.as_ref().unwrap().len()
     }
 }
 
@@ -95,16 +104,19 @@ impl C12 {
 fn challenge_12() -> Result<()> {
     let encrypter = C12::new(false);
 
-    // 1: detect block size
+    // 1: detect block size (and length of target bytes)
     let mut block_size = 0;
-    let start_size = encrypter.encrypt("A")?.len();
-    for n in 2..512 {
+    let mut target_bytes_length = 0;
+    let start_size = encrypter.encrypt("")?.len();
+    for n in 1..512 {
         let encrypted = encrypter.encrypt(&"A".repeat(n))?;
         if encrypted.len() != start_size {
             block_size = encrypted.len() - start_size;
+            target_bytes_length = n - 1;
             break;
         }
     }
+
     assert_eq!(16, block_size);
 
     // 2: detect AES mode (using the fact that ECB is deterministic)
@@ -114,23 +126,27 @@ fn challenge_12() -> Result<()> {
     assert_eq!("ECB", mode);
 
     // 3: find the random string, one byte at a time
-    let mut unknown: Vec<String> = Vec::new();
+    let mut target_bytes: Vec<String> = Vec::new();
 
     // Do like this:
     //   1. Begin by building a string that has a length of block_size - 1:
-    //     Lets say that block size is 8, we begin with: "AAAAAAA"
-    //   2. Feed the string to the oracle and save the first block of ciphertext
+    //      Lets say that block size is 8, we begin with: "AAAAAAA"
+    //   2. Feed the string to the oracle and save the first block of ciphertext.
+    //      Before encryption the first block will look like: AAAAAAA?,
+    //      i.e the last byte is unknown and the first byte of the target bytes.
     //   3. Now, constuct a string ending with every possible byte
-    //      and feed that to the oracle, building a list of
-    //      (input, block) pairs
+    //      and feed that to the oracle, building a list of (input, block) pairs.
     //   4. Find the input, in your list created in step 3, that
     //      yields the same first block.
     //   5. Repeat step 1-4, but with the known byte at last position,
     //      and so on.
+    //
+    // After a while we have found the first block of the target bytes.
+    // By then we will have to keep going with the same principle, but
 
     // Should probably keep going, but the principle is the same
     for _ in 0..block_size {
-        let initial_input = "A".repeat(block_size - unknown.len() - 1);
+        let initial_input = "A".repeat(block_size - target_bytes.len() - 1);
         let initial_encrypted = encrypter.encrypt(&initial_input)?;
 
         let initial_block = &initial_encrypted[0..block_size];
@@ -138,11 +154,10 @@ fn challenge_12() -> Result<()> {
 
         for n in 0..256 {
             let ch = char::from_u32(n).expect("to have valid byte");
-            let input = format!("{}{}{}", initial_input, unknown.join(""), ch);
+            let input = format!("{}{}{}", initial_input, target_bytes.join(""), ch);
             let enc = encrypter.encrypt(&input)?;
             let block = &enc[0..block_size];
-            let key = format!("{}{}{}", initial_input, unknown.join(""), ch);
-            table.push((key, block.to_vec()));
+            table.push((input, block.to_vec()));
         }
 
         let mut found: Option<String> = None;
@@ -154,11 +169,11 @@ fn challenge_12() -> Result<()> {
             }
         }
 
-        let s = found.expect("to found next byte");
-        unknown.push(s);
+        let s = found.expect("to found next char");
+        target_bytes.push(s);
     }
 
-    let unknown = unknown.join("");
+    let unknown = target_bytes.join("");
     assert!(unknown.contains("Rollin'"));
     Ok(())
 }
@@ -330,21 +345,75 @@ fn challenge_14() -> Result<()> {
     // We now have: AES-128-ECB(random-prefix || attacker-controlled || target-bytes, random-key)
     // Same goal: decrypt the target-bytes.
     //
-    // Theory: feed same data two times in order to detect the random data appened:
-    //   1) C1 = [ R1 ][ X ][ Y ]
-    //   2) C2 = [   R2   ][ X ][ Y ]
-    //  X and Y is the same, but R1 and R2 is different on each encryption.
-    //  Find the common tail, i.e [ X ][ Y ] part, in order to find the length:
-    //      |R1|+d = |R2|
-    //
-    // FIXME: the theory doesn't work
-    let data = "A".repeat(block_size);
-    let a = oracle.encrypt(&data)?;
-    let b = oracle.encrypt(&data)?;
-    dbg!(&a.get(0..16), &b.get(0..16));
-    let opt = util::slices_prefix_len(16, &a, &b);
-    assert!(opt.is_some());
+    // The hardest part here is to find the prefix length, then
+    // we can use the same procedure as in ch. 12.
 
+    // Image feeding the following data to the oracle: "",  "x", "xx", etc.
+    // We would get something like this, before it is encrypted:
+    // [ random-prefix ][ target-bytes ]
+    // [ random-prefix ]x[ target-bytes ]
+    // [ random-prefix ]xx[ target-bytes ]
+    // [ random-prefix ]xxx[ target-bytes ]
+    // [ random-prefix ]xxxx[ target-bytes ]
+    //
+    // For each such input and the first block of ciphertext varies,
+    // we have know that the x's are appended in the same block.
+    // If, however, for two inputs of x's, say n and m, know that
+    // n is the amount of padding before a new block was added:
+    // [ P ][ xxx ][ T ... ]
+    // [ P ][ xxx ][ xT ... ]
+
+    let mut padding_len = 0;
+    let a = oracle.encrypt("")?;
+    let mut previous = a.get(0..16).unwrap().to_vec().clone();
+    for n in 1..block_size {
+        let b = oracle.encrypt(&"x".repeat(n))?;
+        let x = &b[0..16];
+        if util::slices_equal(&previous, &x) {
+            padding_len = n - 1;
+            break;
+        }
+        previous = x.to_vec().clone();
+    }
+
+    assert_ne!(padding_len, 0);
+    let prefix_len = block_size - padding_len;
+    assert_eq!(prefix_len, oracle.prefix_len()); // Sanity check
+    let skip_len = prefix_len + padding_len;
+
+    // See ch. 12 for reference.
+    let mut unknown: Vec<String> = Vec::new();
+
+    // Should probably keep going, but the principle is the same
+    for _ in 0..block_size {
+        let initial_input = "x".repeat(padding_len + block_size - unknown.len() - 1);
+        let initial_encrypted = oracle.encrypt(&initial_input)?;
+        let initial_block = &initial_encrypted[skip_len..skip_len + block_size];
+
+        let mut table: Vec<(String, Vec<u8>)> = Vec::new();
+        for n in 0..256 {
+            let ch = char::from_u32(n).expect("to have valid byte");
+            let input = format!("{}{}{}", initial_input, unknown.join(""), ch);
+            let enc = oracle.encrypt(&input)?;
+            let block = &enc[skip_len..skip_len + block_size];
+            table.push((input, block.to_vec()));
+        }
+
+        let mut found: Option<String> = None;
+        for (input, enc) in &table {
+            if util::slices_equal(&initial_block, enc) {
+                let char = input.chars().last().unwrap();
+                found = Some(char.to_string());
+                break;
+            }
+        }
+
+        let s = found.expect("to found next char");
+        unknown.push(s);
+    }
+
+    let unknown = unknown.join("");
+    assert!(unknown.contains("Rollin'"));
     Ok(())
 }
 

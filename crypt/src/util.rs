@@ -93,13 +93,13 @@ where
     return true;
 }
 
-/// Calculates the length of the prefixes of `a` and `b`
+/// Calculates the length of the common prefix, if found, of `a` and `b`
 /// given that they have the same tail:
-///     a = [ p1  ][ tail ]
-///     b = [   p2   ][ tail ]
-/// If the tail is the same it returns Some((|p1|, |p2|)),
-/// else None.
-pub fn slices_prefix_len<T>(block_size: usize, a: &[T], b: &[T]) -> Option<(usize, usize)>
+///     a = [ common ][ ........ ]
+///     b = [ common ][ ... ]
+///
+/// If the prefix is the same it returns Some((|common|), else None.
+pub fn slices_prefix_len<T>(a: &[T], b: &[T]) -> Option<usize>
 where
     T: PartialEq + Debug,
 {
@@ -107,20 +107,21 @@ where
         return None;
     }
 
-    // Sweeping window
-    let a_end = a.len() - block_size + 1;
-    let b_end = b.len() - block_size + 1;
-
-    for a_start in 0..a_end {
-        let x = &a[a_start..a_start + block_size];
-        for b_start in 0..b_end {
-            let y = &b[b_start..b_start + block_size];
-            if slices_equal(x, y) {
-                return Some((a_start, b_start));
-            }
+    let mut index = 0;
+    while index < a.len() {
+        let x = &a[index];
+        let y = &b[index];
+        if !x.eq(y) {
+            break;
         }
+        index += 1;
     }
-    None
+
+    if index == 0 {
+        None
+    } else {
+        Some(index)
+    }
 }
 
 // Takes a multiline string and joines all into a single line.
@@ -186,31 +187,23 @@ mod tests {
     fn test_slices_prefix_len_str() {
         let a = &["c", "d", "a", "b", "c"];
         let b = &["x", "y", "z", "a", "b", "c"];
-        let opt = slices_prefix_len(3, a, b);
-        assert_eq!(opt, Some((2, 3)));
+        let opt = slices_prefix_len(a, b);
+        assert_eq!(opt, None);
     }
 
     #[test]
     fn test_slices_prefix_len_equal() {
         let a = &["a", "b", "c"];
         let b = &["a", "b", "c"];
-        let opt = slices_prefix_len(3, a, b);
-        assert_eq!(opt, Some((0, 0)));
+        let opt = slices_prefix_len(a, b);
+        assert_eq!(opt, Some(3));
     }
 
     #[test]
     fn test_slices_prefix_len_u8() {
-        let a = &[9, 0, 12, 1, 2, 3, 4, 5, 6];
-        let b = &[0, 0, 2, 2, 3, 1, 4, 1, 2, 3, 4, 5];
-        let opt = slices_prefix_len(4, a, b);
-        assert_eq!(opt, Some((3, 7)));
-    }
-
-    #[test]
-    fn test_slices_prefix_len_different() {
-        let a = &[9, 0, 12, 1, 2, 5, 4, 5, 7];
-        let b = &[0, 0, 2, 2, 3, 1, 4, 0, 3, 3, 5, 5];
-        let opt = slices_prefix_len(4, a, b);
-        assert!(opt.is_none());
+        let a = &[1, 0, 2, 1, 2, 3, 4, 5, 6];
+        let b = &[1, 0, 2, 2, 3, 1, 4, 1, 2, 3, 4, 5];
+        let opt = slices_prefix_len(a, b);
+        assert_eq!(opt, Some(3));
     }
 }
